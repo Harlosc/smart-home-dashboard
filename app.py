@@ -11,9 +11,6 @@ import plotly.graph_objects as go
 import pandas as pd
 
 
-# =========================================================
-# MONGODB
-# =========================================================
 
 MONGO_URI = os.environ.get("MONGO_URI")
 
@@ -26,9 +23,6 @@ db = client["smart_home"]
 readings = db["readings"]
 
 
-# =========================================================
-# DASH APP
-# =========================================================
 
 app = dash.Dash(
     __name__,
@@ -38,13 +32,6 @@ app = dash.Dash(
 server = app.server
 
 
-# =========================================================
-# DROPDOWN / UI CSS
-# =========================================================
-
-# Dash's DARKLY theme can make the selected value inside a
-# white dropdown appear blank. Force the selected value and
-# placeholder text to use a dark color.
 app.index_string = """
 <!DOCTYPE html>
 <html>
@@ -109,17 +96,13 @@ app.index_string = """
 """
 
 
-# =========================================================
-# SETTINGS
-# =========================================================
 
-STALE_SECONDS = 90  # 30-second uploads + network/Render tolerance
 
-# Keep MongoDB history for 7 days. MongoDB TTL cleanup runs automatically.
+STALE_SECONDS = 90  
+
 RETENTION_SECONDS = 7 * 24 * 60 * 60
 
-# Create/repair the timestamp TTL index.
-# The same timestamp index is also useful for dashboard sorting/filtering.
+
 existing_indexes = readings.index_information()
 ttl_index_ready = False
 
@@ -128,7 +111,6 @@ for index_name, index_info in existing_indexes.items():
         if index_info.get("expireAfterSeconds") == RETENTION_SECONDS:
             ttl_index_ready = True
         else:
-            # Replace an old/non-TTL timestamp index with the 7-day TTL index.
             readings.drop_index(index_name)
         break
 
@@ -147,9 +129,7 @@ FIELDS = [
 ]
 
 
-# =========================================================
-# HEALTH CHECK
-# =========================================================
+
 
 @server.route("/")
 def home():
@@ -169,9 +149,6 @@ def health():
     })
 
 
-# =========================================================
-# RECEIVE ESP32 DATA
-# =========================================================
 
 @server.route("/data", methods=["POST"])
 def receive_data():
@@ -184,7 +161,7 @@ def receive_data():
             "message": "Invalid JSON"
         }), 400
 
-    # Check required values
+    
     for field in FIELDS:
 
         if field not in data:
@@ -208,7 +185,7 @@ def receive_data():
         }), 400
 
 
-    # UTC timestamp
+    
     timestamp = datetime.now(timezone.utc)
 
 
@@ -221,7 +198,6 @@ def receive_data():
     }
 
 
-    # Optional LED state
     if "led_status" in data:
 
         document["led_status"] = bool(
@@ -229,7 +205,7 @@ def receive_data():
         )
 
 
-    # Save to MongoDB
+    
     readings.insert_one(document)
 
 
@@ -248,9 +224,7 @@ def receive_data():
     }), 200
 
 
-# =========================================================
-# GET DATA
-# =========================================================
+
 
 @server.route("/data.json", methods=["GET"])
 def get_data():
@@ -290,9 +264,6 @@ def get_data():
     return jsonify(output)
 
 
-# =========================================================
-# LOAD MONGODB DATA
-# =========================================================
 
 def load_data():
 
@@ -316,23 +287,18 @@ def load_data():
 
     df = pd.DataFrame(documents)
 
-    # MongoDB timestamps are stored in UTC
+    
     df["timestamp"] = pd.to_datetime(
         df["timestamp"],
         utc=True
     )
 
-    # Convert UTC to Sri Lanka time
+    
     df["timestamp"] = df["timestamp"].dt.tz_convert(
         "Asia/Colombo"
     )
 
-    # Convert sensor columns to numeric values.
-    # The fault-tolerant ESP32 uses:
-    #   -999 for unavailable DHT22 temperature/humidity
-    #   -1 for unavailable analog sensors
-    # Convert those sentinel values to NaN so the dashboard
-    # can correctly detect a failed sensor and show a warning.
+    
     for col in ["temperature", "humidity", "gas", "light"]:
         df[col] = pd.to_numeric(
             df[col],
@@ -348,9 +314,6 @@ def load_data():
     return df
 
 
-# =========================================================
-# FILTER DATA
-# =========================================================
 
 def filter_data(df, time_range):
 
@@ -399,9 +362,6 @@ def filter_data(df, time_range):
     ]
 
 
-# =========================================================
-# GRAPH STYLE
-# =========================================================
 
 def style_graph(fig):
 
@@ -447,9 +407,7 @@ def style_graph(fig):
     return fig
 
 
-# =========================================================
-# SENSOR VALUE HELPERS
-# =========================================================
+
 
 def safe_sensor_value(value, decimals=1):
     if value is None or pd.isna(value):
@@ -460,9 +418,7 @@ def safe_sensor_value(value, decimals=1):
     except (TypeError, ValueError):
         return "Unavailable"
 
-    # ESP32 fault-tolerant sentinels:
-    # -999 = DHT22 unavailable
-    # -1   = analog sensor unavailable
+    
     if numeric <= -900 or numeric < 0:
         return "Unavailable"
 
@@ -472,15 +428,13 @@ def safe_sensor_value(value, decimals=1):
     return f"{numeric:.{decimals}f}"
 
 
-# =========================================================
-# DASHBOARD LAYOUT
-# =========================================================
+
 
 app.layout = dbc.Container(
 
     [
 
-        # HEADER
+        
         dbc.Row(
             [
 
@@ -531,7 +485,7 @@ app.layout = dbc.Container(
         ),
 
 
-        # SENSOR CARDS
+        
         dbc.Row(
             [
 
@@ -684,13 +638,13 @@ app.layout = dbc.Container(
         ),
 
 
-        # CONTROLS
+       
         dbc.Card(
             dbc.CardBody(
                 [
                     dbc.Row(
                         [
-                            # TIME RANGE
+                            
                             dbc.Col(
                                 [
                                     html.Label(
@@ -732,7 +686,7 @@ app.layout = dbc.Container(
                                 md=3
                             ),
 
-                            # SHOW CHARTS
+                            
                             dbc.Col(
                                 [
                                     html.Label(
@@ -773,7 +727,7 @@ app.layout = dbc.Container(
                                 className="mt-3 mt-md-0"
                             ),
 
-                            # TEMPERATURE ALERT
+                            
                             dbc.Col(
                                 [
                                     html.Div(
@@ -842,7 +796,7 @@ app.layout = dbc.Container(
                                 className="mt-3 mt-md-0"
                             ),
 
-                            # GAS ALERT
+                            
                             dbc.Col(
                                 [
                                     html.Div(
@@ -918,14 +872,14 @@ app.layout = dbc.Container(
             className="bg-dark border-secondary mb-4"
         ),
 
-        # ALERT
+        
         html.Div(
             id="alert-section",
             className="mb-4"
         ),
 
 
-        # GRAPHS - OLD STYLE: TEMPERATURE/HUMIDITY + AIR QUALITY SIDE BY SIDE
+        
         dbc.Row(
             [
 
@@ -982,7 +936,7 @@ app.layout = dbc.Container(
         ),
 
 
-        # LIGHT - FULL WIDTH LIKE THE OLDER VERSION
+        
         dbc.Card(
             dbc.CardBody(
                 [
@@ -1008,7 +962,7 @@ app.layout = dbc.Container(
         ),
 
 
-        # AUTO REFRESH
+        
         dcc.Interval(
             id="refresh",
             interval=5000,
@@ -1023,9 +977,7 @@ app.layout = dbc.Container(
 )
 
 
-# =========================================================
-# DASH CALLBACK
-# =========================================================
+
 
 @app.callback(
 
@@ -1128,9 +1080,7 @@ def update_dashboard(
     df = load_data()
 
 
-    # ==============================================
-    # NO DATA
-    # ==============================================
+    
 
     if df.empty:
 
@@ -1194,16 +1144,11 @@ def update_dashboard(
         )
 
 
-    # ==============================================
-    # LATEST READING
-    # ==============================================
 
     latest = df.iloc[-1]
 
 
-    # ==============================================
-    # FILTER
-    # ==============================================
+    
 
     filtered = filter_data(
         df,
@@ -1211,10 +1156,7 @@ def update_dashboard(
     )
 
 
-    # ==============================================
-    # ONLINE STATUS
-    # ==============================================
-
+    
     now = pd.Timestamp.now(
     tz="Asia/Colombo"
 )
@@ -1242,16 +1184,13 @@ def update_dashboard(
         )
 
 
-    # ==============================================
-    # ALERTS + SENSOR FAILURE NOTIFICATION
-    # ==============================================
+    
 
     alerts = []
     sensor_failures = []
 
 
-    # Sensor failure detection.
-    # The dashboard converts the ESP32 fault sentinels into NaN.
+    
     if pd.isna(latest["temperature"]):
         sensor_failures.append("Temperature")
 
@@ -1265,7 +1204,7 @@ def update_dashboard(
         sensor_failures.append("Light")
 
 
-    # Show one clear warning when any sensor is unavailable.
+    
     if sensor_failures:
 
         if len(sensor_failures) == 1:
@@ -1296,7 +1235,7 @@ def update_dashboard(
         )
 
 
-    # Normal environmental alerts.
+    
     if pd.notna(latest["temperature"]) and latest["temperature"] >= temp_alert_threshold:
 
         alerts.append(
@@ -1341,9 +1280,7 @@ def update_dashboard(
         )
 
 
-    # ==============================================
-    # TEMPERATURE + HUMIDITY
-    # ==============================================
+    
 
     temp_fig = go.Figure()
 
@@ -1439,7 +1376,7 @@ def update_dashboard(
     )
 )
 
-    # Older dashboard style: red dashed temperature alert line
+    
     temp_fig.add_hline(
         y=temp_alert_threshold,
         line_dash="dash",
@@ -1450,7 +1387,7 @@ def update_dashboard(
         annotation_font_color="#94a3b8"
     )
 
-    # Keep the dual-axis presentation clean.
+    
     temp_fig.update_layout(
         height=500,
         legend=dict(
@@ -1463,9 +1400,7 @@ def update_dashboard(
     )
 
 
-    # ==============================================
-    # GAS
-    # ==============================================
+    
 
     gas_fig = go.Figure()
 
@@ -1500,7 +1435,7 @@ def update_dashboard(
 
     style_graph(gas_fig)
 
-    # Older dashboard style: red dashed gas alert threshold
+    
     gas_fig.add_hline(
         y=gas_alert_threshold,
         line_dash="dash",
@@ -1517,10 +1452,7 @@ def update_dashboard(
     )
 
 
-    # ==============================================
-    # LIGHT
-    # ==============================================
-
+    
     light_fig = go.Figure()
 
 
@@ -1564,9 +1496,7 @@ def update_dashboard(
     )
 
 
-    # ==============================================
-    # RETURN
-    # ==============================================
+   
 
     return (
 
@@ -1597,9 +1527,7 @@ def update_dashboard(
     )
 
 
-# =========================================================
-# ALERT THRESHOLD INPUT SYNC
-# =========================================================
+
 
 @app.callback(
     [
@@ -1644,16 +1572,13 @@ def sync_gas_threshold(slider_value, input_value):
 
     value = max(0, min(4000, float(value)))
 
-    # Keep gas threshold on 100-point increments.
+    
     value = round(value / 100) * 100
 
     return value, value
 
 
-# =========================================================
-# SHOW / HIDE CHARTS
 
-# =========================================================
 
 @app.callback(
 
@@ -1680,9 +1605,7 @@ def toggle_charts(selected_charts):
     )
 
 
-# =========================================================
-# START SERVER
-# =========================================================
+
 
 if __name__ == "__main__":
 
