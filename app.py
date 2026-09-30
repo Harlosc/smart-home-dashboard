@@ -10,7 +10,7 @@ from datetime import datetime
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
 server = app.server
 
-DATA_URL = "https://your-flask-app.onrender.com/data.json"
+DATA_URL = "https://smart-home-dashboard-jioo.onrender.com/data.json"
 STALE_SECONDS = 20
 
 
