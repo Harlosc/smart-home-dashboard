@@ -659,69 +659,77 @@ app.layout = dbc.Container(
         ),
 
 
-        # TEMPERATURE + HUMIDITY
-        dbc.Card(
-            dbc.CardBody(
-                [
+        # GRAPHS - OLD STYLE: TEMPERATURE/HUMIDITY + AIR QUALITY SIDE BY SIDE
+        dbc.Row(
+            [
 
-                    html.H5(
-                        "Temperature & Humidity",
-                        className="text-white fw-bold"
+                dbc.Col(
+                    dbc.Card(
+                        dbc.CardBody(
+                            [
+                                html.H5(
+                                    "Temperature & Humidity Trend",
+                                    className="text-white fw-bold mb-3"
+                                ),
+
+                                dcc.Graph(
+                                    id="temperature-chart",
+                                    config={
+                                        "displayModeBar": False
+                                    },
+                                    style={"height": "430px"}
+                                )
+                            ]
+                        ),
+                        className="bg-dark border-secondary h-100"
                     ),
+                    width=6
+                ),
 
-                    dcc.Graph(
-                        id="temperature-chart",
-                        config={
-                            "displayModeBar": False
-                        }
-                    )
+                dbc.Col(
+                    dbc.Card(
+                        dbc.CardBody(
+                            [
+                                html.H5(
+                                    "Air Quality Trend",
+                                    className="text-white fw-bold mb-3"
+                                ),
 
-                ]
-            ),
+                                dcc.Graph(
+                                    id="gas-chart",
+                                    config={
+                                        "displayModeBar": False
+                                    },
+                                    style={"height": "430px"}
+                                )
+                            ]
+                        ),
+                        className="bg-dark border-secondary h-100"
+                    ),
+                    width=6
+                )
 
-            className="bg-dark border-secondary mb-4"
+            ],
+            className="g-4 mb-4"
         ),
 
 
-        # GAS
+        # LIGHT - FULL WIDTH LIKE THE OLDER VERSION
         dbc.Card(
             dbc.CardBody(
                 [
 
                     html.H5(
-                        "Air Quality / Gas",
-                        className="text-white fw-bold"
-                    ),
-
-                    dcc.Graph(
-                        id="gas-chart",
-                        config={
-                            "displayModeBar": False
-                        }
-                    )
-
-                ]
-            ),
-
-            className="bg-dark border-secondary mb-4"
-        ),
-
-
-        # LIGHT
-        dbc.Card(
-            dbc.CardBody(
-                [
-
-                    html.H5(
-                        "Light Level",
-                        className="text-white fw-bold"
+                        "Light Level Trend",
+                        className="text-white fw-bold mb-3"
                     ),
 
                     dcc.Graph(
                         id="light-chart",
                         config={
                             "displayModeBar": False
-                        }
+                        },
+                        style={"height": "400px"}
                     )
 
                 ]
@@ -1071,6 +1079,29 @@ def update_dashboard(
 
     style_graph(temp_fig)
 
+    # Older dashboard style: red dashed temperature alert line
+    temp_fig.add_hline(
+        y=35,
+        line_dash="dash",
+        line_width=2,
+        line_color="#ff5c5c",
+        annotation_text="Temp Alert",
+        annotation_position="top right",
+        annotation_font_color="#94a3b8"
+    )
+
+    # Keep the dual-axis presentation clean.
+    temp_fig.update_layout(
+        height=430,
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=1.02,
+            xanchor="left",
+            x=0
+        )
+    )
+
 
     # ==============================================
     # GAS
@@ -1106,8 +1137,19 @@ def update_dashboard(
 
     style_graph(gas_fig)
 
+    # Older dashboard style: red dashed gas alert threshold
+    gas_fig.add_hline(
+        y=2000,
+        line_dash="dash",
+        line_width=2,
+        line_color="#ff5c5c",
+        annotation_text="Alert Threshold",
+        annotation_position="top right",
+        annotation_font_color="#94a3b8"
+    )
 
     gas_fig.update_layout(
+        height=430,
         yaxis_title="MQ-135 Value"
     )
 
@@ -1148,8 +1190,8 @@ def update_dashboard(
 
     style_graph(light_fig)
 
-
     light_fig.update_layout(
+        height=400,
         yaxis_title="LDR Value"
     )
 
