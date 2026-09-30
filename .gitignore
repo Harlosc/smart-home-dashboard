@@ -1,0 +1,4 @@
+sensor_data.csv
+sensor_data_cache.json
+__pycache__/
+*.pyc
