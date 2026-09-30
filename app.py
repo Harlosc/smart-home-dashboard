@@ -113,7 +113,31 @@ app.index_string = """
 # SETTINGS
 # =========================================================
 
-STALE_SECONDS = 20
+STALE_SECONDS = 90  # 30-second uploads + network/Render tolerance
+
+# Keep MongoDB history for 7 days. MongoDB TTL cleanup runs automatically.
+RETENTION_SECONDS = 7 * 24 * 60 * 60
+
+# Create/repair the timestamp TTL index.
+# The same timestamp index is also useful for dashboard sorting/filtering.
+existing_indexes = readings.index_information()
+ttl_index_ready = False
+
+for index_name, index_info in existing_indexes.items():
+    if index_info.get("key") == [("timestamp", 1)]:
+        if index_info.get("expireAfterSeconds") == RETENTION_SECONDS:
+            ttl_index_ready = True
+        else:
+            # Replace an old/non-TTL timestamp index with the 7-day TTL index.
+            readings.drop_index(index_name)
+        break
+
+if not ttl_index_ready:
+    readings.create_index(
+        [("timestamp", 1)],
+        expireAfterSeconds=RETENTION_SECONDS,
+        name="timestamp_ttl_7_days"
+    )
 
 FIELDS = [
     "temperature",
