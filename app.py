@@ -355,6 +355,12 @@ app.layout = dbc.Container(
 
                         html.P(
                             "Real-time environmental monitoring",
+                            className="text-secondary mb-1"
+                        ),
+
+                        html.Small(
+                            id="last-updated",
+                            children="Last updated: --",
                             className="text-secondary"
                         )
 
@@ -705,6 +711,11 @@ app.layout = dbc.Container(
         ),
 
         Output(
+            "last-updated",
+            "children"
+        ),
+
+        Output(
             "alert-section",
             "children"
         ),
@@ -797,6 +808,8 @@ def update_dashboard(
                 color="danger",
                 className="px-3 py-2"
             ),
+
+            "Last updated: No sensor data",
 
             dbc.Alert(
                 "Waiting for ESP32 sensor data...",
@@ -1087,6 +1100,8 @@ def update_dashboard(
         f"{latest['light']:.0f}",
 
         status,
+
+        f"Last updated: {latest['timestamp'].strftime('%Y-%m-%d %I:%M:%S %p')}",
 
         alert_section,
 
