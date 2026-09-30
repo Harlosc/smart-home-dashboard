@@ -1231,6 +1231,7 @@ def update_dashboard(
             y=filtered["temperature"],
 
             mode="lines+markers",
+            connectgaps=True,
 
             name="Temperature",
 
@@ -1258,6 +1259,7 @@ def update_dashboard(
             y=filtered["humidity"],
 
             mode="lines+markers",
+            connectgaps=True,
 
             name="Humidity",
 
@@ -1339,6 +1341,7 @@ def update_dashboard(
             y=filtered["gas"],
 
             mode="lines+markers",
+            connectgaps=True,
 
             name="Gas Level",
 
@@ -1392,6 +1395,7 @@ def update_dashboard(
             y=filtered["light"],
 
             mode="lines+markers",
+            connectgaps=True,
 
             name="Light Level",
 
