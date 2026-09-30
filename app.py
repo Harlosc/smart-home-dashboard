@@ -1201,13 +1201,62 @@ def update_dashboard(
 
 
     # ==============================================
-    # ALERT
+    # ALERTS + SENSOR FAILURE NOTIFICATION
     # ==============================================
 
     alerts = []
+    sensor_failures = []
 
 
-    if latest["temperature"] >= temp_alert_threshold:
+    # Sensor failure detection.
+    # The dashboard converts the ESP32 fault sentinels into NaN.
+    if pd.isna(latest["temperature"]):
+        sensor_failures.append("Temperature")
+
+    if pd.isna(latest["humidity"]):
+        sensor_failures.append("Humidity")
+
+    if pd.isna(latest["gas"]):
+        sensor_failures.append("Gas")
+
+    if pd.isna(latest["light"]):
+        sensor_failures.append("Light")
+
+
+    # Show one clear warning when any sensor is unavailable.
+    if sensor_failures:
+
+        if len(sensor_failures) == 1:
+
+            sensor_warning_text = (
+                f"⚠ Sensor Warning: {sensor_failures[0]} sensor "
+                f"is unavailable. Other sensors are still operating."
+            )
+
+        else:
+
+            sensor_warning_text = (
+                "⚠ Sensor Warning: "
+                + ", ".join(sensor_failures)
+                + " sensors are unavailable. "
+                "Other available sensors are still operating."
+            )
+
+        alerts.append(
+            dbc.Alert(
+                [
+                    html.Strong("Sensor Warning"),
+                    html.Br(),
+                    sensor_warning_text
+                ],
+                color="warning",
+                className="mb-2"
+            )
+        )
+
+
+    # Normal environmental alerts.
+    if pd.notna(latest["temperature"]) and latest["temperature"] >= temp_alert_threshold:
 
         alerts.append(
             dbc.Alert(
@@ -1217,7 +1266,7 @@ def update_dashboard(
         )
 
 
-    if latest["gas"] >= gas_alert_threshold:
+    if pd.notna(latest["gas"]) and latest["gas"] >= gas_alert_threshold:
 
         alerts.append(
             dbc.Alert(
@@ -1240,7 +1289,7 @@ def update_dashboard(
     if not alerts:
 
         alert_section = dbc.Alert(
-            "✓ Everything looks good",
+            "✓ Everything looks good — all sensors are working.",
             color="success"
         )
 
