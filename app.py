@@ -84,6 +84,17 @@ app.index_string = """
                 background-color: #e5e7eb !important;
                 color: #111827 !important;
             }
+
+            /* Make alert-slider numbers clearly visible */
+            .rc-slider-mark-text {
+                color: #ffffff !important;
+                font-weight: 600 !important;
+                font-size: 13px !important;
+            }
+
+            .rc-slider-mark {
+                color: #ffffff !important;
+            }
         </style>
     </head>
     <body>
@@ -723,9 +734,9 @@ app.layout = dbc.Container(
                                                     step=1,
                                                     value=35,
                                                     marks={
-                                                        20: "20",
-                                                        30: "30",
-                                                        40: "40"
+                                                        20: {"label": "20", "style": {"color": "#ffffff"}},
+                                                        30: {"label": "30", "style": {"color": "#ffffff"}},
+                                                        40: {"label": "40", "style": {"color": "#ffffff"}}
                                                     },
                                                     tooltip={
                                                         "placement": "bottom",
@@ -792,9 +803,9 @@ app.layout = dbc.Container(
                                                     step=100,
                                                     value=2000,
                                                     marks={
-                                                        0: "0",
-                                                        2000: "2000",
-                                                        4000: "4000"
+                                                        0: {"label": "0", "style": {"color": "#ffffff"}},
+                                                        2000: {"label": "2000", "style": {"color": "#ffffff"}},
+                                                        4000: {"label": "4000", "style": {"color": "#ffffff"}}
                                                     },
                                                     tooltip={
                                                         "placement": "bottom",
@@ -1230,7 +1241,7 @@ def update_dashboard(
 
             y=filtered["temperature"],
 
-            mode="lines+markers",
+            mode="lines",
             connectgaps=True,
 
             name="Temperature",
@@ -1258,7 +1269,7 @@ def update_dashboard(
 
             y=filtered["humidity"],
 
-            mode="lines+markers",
+            mode="lines",
             connectgaps=True,
 
             name="Humidity",
@@ -1340,7 +1351,7 @@ def update_dashboard(
 
             y=filtered["gas"],
 
-            mode="lines+markers",
+            mode="lines",
             connectgaps=True,
 
             name="Gas Level",
@@ -1394,7 +1405,7 @@ def update_dashboard(
 
             y=filtered["light"],
 
-            mode="lines+markers",
+            mode="lines",
             connectgaps=True,
 
             name="Light Level",
