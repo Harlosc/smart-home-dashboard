@@ -1405,13 +1405,7 @@ def update_dashboard(
 
     )
 
-    temp_fig.update_traces(
-    hoverlabel=dict(
-        bgcolor="#1e293b",
-        font_color="white",
-        font_size=13
-    )
-)
+    
 
 
     temp_fig.update_layout(
@@ -1434,6 +1428,16 @@ def update_dashboard(
 
 
     style_graph(temp_fig)
+
+    temp_fig.update_layout(
+    hoverlabel=dict(
+        bgcolor="#1e293b",
+        font=dict(
+            color="white",
+            size=13
+        )
+    )
+)
 
     # Older dashboard style: red dashed temperature alert line
     temp_fig.add_hline(
