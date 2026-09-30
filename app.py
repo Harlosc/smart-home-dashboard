@@ -1405,6 +1405,14 @@ def update_dashboard(
 
     )
 
+    temp_fig.update_traces(
+    hoverlabel=dict(
+        bgcolor="#1e293b",
+        font_color="white",
+        font_size=13
+    )
+)
+
 
     temp_fig.update_layout(
 
