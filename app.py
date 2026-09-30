@@ -318,11 +318,12 @@ def style_graph(fig):
         ),
 
         xaxis=dict(
-    showgrid=True,
-    gridcolor="#334155",
-    tickformat="%I:%M:%S %p",
-    title="Sri Lanka Time"
-),
+            showgrid=True,
+            gridcolor="#334155",
+            tickformat="%I:%M:%S %p",
+            title="Sri Lanka Time",
+            type="date"
+        ),
 
         yaxis=dict(
             showgrid=True,
@@ -358,10 +359,14 @@ app.layout = dbc.Container(
                             className="text-secondary mb-1"
                         ),
 
-                        html.Small(
+                        html.Div(
                             id="last-updated",
                             children="Last updated: --",
-                            className="text-secondary"
+                            style={
+                                "color": "#94a3b8",
+                                "fontSize": "14px",
+                                "marginTop": "4px"
+                            }
                         )
 
                     ],
@@ -538,32 +543,34 @@ app.layout = dbc.Container(
                                         id="time-range",
 
                                         options=[
-
                                             {
                                                 "label": "Last 10 minutes",
                                                 "value": "10m"
                                             },
-
                                             {
                                                 "label": "Last 1 hour",
                                                 "value": "1h"
                                             },
-
                                             {
                                                 "label": "Last 6 hours",
                                                 "value": "6h"
                                             },
-
                                             {
                                                 "label": "Last 24 hours",
                                                 "value": "24h"
                                             }
-
                                         ],
 
                                         value="10m",
 
-                                        clearable=False
+                                        clearable=False,
+
+                                        searchable=False,
+
+                                        style={
+                                            "color": "#111827",
+                                            "backgroundColor": "#ffffff"
+                                        }
 
                                     )
 
