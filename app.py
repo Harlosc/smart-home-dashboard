@@ -1,293 +1,1119 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
+
 from flask import request, jsonify
 from pymongo import MongoClient
+
 import dash
 from dash import dcc, html, Input, Output
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 import pandas as pd
 
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
-server = app.server
+
+# =========================================================
+# MONGODB
+# =========================================================
 
 MONGO_URI = os.environ.get("MONGO_URI")
+
+if not MONGO_URI:
+    raise RuntimeError("MONGO_URI environment variable is missing.")
+
 client = MongoClient(MONGO_URI)
+
 db = client["smart_home"]
 readings = db["readings"]
 
-FIELDS = ["temperature", "humidity", "gas", "light"]
+
+# =========================================================
+# DASH APP
+# =========================================================
+
+app = dash.Dash(
+    __name__,
+    external_stylesheets=[dbc.themes.DARKLY]
+)
+
+server = app.server
+
+
+# =========================================================
+# SETTINGS
+# =========================================================
+
 STALE_SECONDS = 20
 
+FIELDS = [
+    "temperature",
+    "humidity",
+    "gas",
+    "light"
+]
 
-@server.route('/data', methods=['POST'])
+
+# =========================================================
+# HEALTH CHECK
+# =========================================================
+
+@server.route("/")
+def home():
+    return """
+    <h1>Smart Home IoT API</h1>
+    <p>Server is running successfully.</p>
+    <p>POST sensor data to /data</p>
+    <p>GET sensor data from /data.json</p>
+    """
+
+
+@server.route("/health")
+def health():
+    return jsonify({
+        "status": "healthy",
+        "service": "smart-home-dashboard"
+    })
+
+
+# =========================================================
+# RECEIVE ESP32 DATA
+# =========================================================
+
+@server.route("/data", methods=["POST"])
 def receive_data():
+
     data = request.get_json(silent=True)
 
-    if data is None:
-        return jsonify({"status": "bad json"}), 400
+    if not data:
+        return jsonify({
+            "status": "error",
+            "message": "Invalid JSON"
+        }), 400
 
-    if any(data.get(k) is None for k in FIELDS):
-        return jsonify({"status": "missing values"}), 400
+    # Check required values
+    for field in FIELDS:
 
-    doc = {
-        "timestamp": datetime.now(),
-        "temperature": float(data["temperature"]),
-        "humidity": float(data["humidity"]),
-        "gas": int(data["gas"]),
-        "light": int(data["light"])
+        if field not in data:
+            return jsonify({
+                "status": "error",
+                "message": f"Missing field: {field}"
+            }), 400
+
+    try:
+
+        temperature = float(data["temperature"])
+        humidity = float(data["humidity"])
+        gas = int(data["gas"])
+        light = int(data["light"])
+
+    except (ValueError, TypeError):
+
+        return jsonify({
+            "status": "error",
+            "message": "Invalid sensor value"
+        }), 400
+
+
+    # UTC timestamp
+    timestamp = datetime.now(timezone.utc)
+
+
+    document = {
+        "timestamp": timestamp,
+        "temperature": temperature,
+        "humidity": humidity,
+        "gas": gas,
+        "light": light
     }
+
+
+    # Optional LED state
     if "led_status" in data:
-        doc["led_status"] = data["led_status"]
 
-    readings.insert_one(doc)
-    print(f"Saved: {doc}")
-    return jsonify({"status": "received"}), 200
-
-
-@server.route('/data.json', methods=['GET'])
-def get_data():
-    docs = list(readings.find({}, {"_id": 0}).sort("timestamp", 1))
-    for d in docs:
-        if isinstance(d.get("timestamp"), datetime):
-            d["timestamp"] = d["timestamp"].strftime("%Y-%m-%d %H:%M:%S")
-    return jsonify(docs)
+        document["led_status"] = bool(
+            data["led_status"]
+        )
 
 
-def apply_dark_chart_style(fig):
-    fig.update_layout(
-        template="plotly_dark",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#94A3B8", family="Inter, sans-serif"),
-        margin=dict(l=40, r=20, t=40, b=40),
-        xaxis=dict(gridcolor="#334155", showgrid=True),
-        yaxis=dict(gridcolor="#334155", showgrid=True),
+    # Save to MongoDB
+    readings.insert_one(document)
+
+
+    print(
+        f"DATA RECEIVED | "
+        f"Temp={temperature} | "
+        f"Humidity={humidity} | "
+        f"Gas={gas} | "
+        f"Light={light}"
     )
+
+
+    return jsonify({
+        "status": "received",
+        "message": "Sensor data saved successfully"
+    }), 200
+
+
+# =========================================================
+# GET DATA
+# =========================================================
+
+@server.route("/data.json", methods=["GET"])
+def get_data():
+
+    documents = list(
+        readings
+        .find({}, {"_id": 0})
+        .sort("timestamp", 1)
+    )
+
+
+    output = []
+
+    for document in documents:
+
+        timestamp = document.get("timestamp")
+
+        if isinstance(timestamp, datetime):
+
+            timestamp = (
+                pd.Timestamp(timestamp)
+                .tz_localize("UTC")
+                .tz_convert("Asia/Colombo")
+                .isoformat()
+    )
+
+        output.append({
+            "timestamp": timestamp,
+            "temperature": document.get("temperature"),
+            "humidity": document.get("humidity"),
+            "gas": document.get("gas"),
+            "light": document.get("light"),
+            "led_status": document.get("led_status", False)
+        })
+
+
+    return jsonify(output)
+
+
+# =========================================================
+# LOAD MONGODB DATA
+# =========================================================
+
+def load_data():
+
+    documents = list(
+        readings
+        .find({}, {"_id": 0})
+        .sort("timestamp", 1)
+    )
+
+    if not documents:
+
+        return pd.DataFrame(
+            columns=[
+                "timestamp",
+                "temperature",
+                "humidity",
+                "gas",
+                "light"
+            ]
+        )
+
+    df = pd.DataFrame(documents)
+
+    # MongoDB timestamps are stored in UTC
+    df["timestamp"] = pd.to_datetime(
+        df["timestamp"],
+        utc=True
+    )
+
+    # Convert UTC to Sri Lanka time
+    df["timestamp"] = df["timestamp"].dt.tz_convert(
+        "Asia/Colombo"
+    )
+
+    return df
+
+
+# =========================================================
+# FILTER DATA
+# =========================================================
+
+def filter_data(df, time_range):
+
+    if df.empty:
+        return df
+
+
+    latest_time = df["timestamp"].max()
+
+
+    if time_range == "10m":
+
+        start_time = latest_time - pd.Timedelta(
+            minutes=10
+        )
+
+
+    elif time_range == "1h":
+
+        start_time = latest_time - pd.Timedelta(
+            hours=1
+        )
+
+
+    elif time_range == "6h":
+
+        start_time = latest_time - pd.Timedelta(
+            hours=6
+        )
+
+
+    elif time_range == "24h":
+
+        start_time = latest_time - pd.Timedelta(
+            hours=24
+        )
+
+
+    else:
+
+        start_time = df["timestamp"].min()
+
+
+    return df[
+        df["timestamp"] >= start_time
+    ]
+
+
+# =========================================================
+# GRAPH STYLE
+# =========================================================
+
+def style_graph(fig):
+
+    fig.update_layout(
+
+        template="plotly_dark",
+
+        paper_bgcolor="rgba(0,0,0,0)",
+
+        plot_bgcolor="rgba(0,0,0,0)",
+
+        margin=dict(
+            l=50,
+            r=30,
+            t=40,
+            b=50
+        ),
+
+        hovermode="x unified",
+
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="left",
+            x=0
+        ),
+
+        xaxis=dict(
+    showgrid=True,
+    gridcolor="#334155",
+    tickformat="%I:%M:%S %p",
+    title="Sri Lanka Time"
+),
+
+        yaxis=dict(
+            showgrid=True,
+            gridcolor="#334155"
+        )
+    )
+
     return fig
 
 
-def load_data():
-    docs = list(readings.find({}, {"_id": 0}).sort("timestamp", 1))
-    if not docs:
-        return pd.DataFrame(columns=['timestamp', 'temperature', 'humidity', 'gas', 'light'])
-    df = pd.DataFrame(docs)
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
-    return df
+# =========================================================
+# DASHBOARD LAYOUT
+# =========================================================
+
+app.layout = dbc.Container(
+
+    [
+
+        # HEADER
+        dbc.Row(
+            [
+
+                dbc.Col(
+                    [
+
+                        html.H2(
+                            "Smart Home IoT Dashboard",
+                            className="text-white fw-bold mb-1"
+                        ),
+
+                        html.P(
+                            "Real-time environmental monitoring",
+                            className="text-secondary"
+                        )
+
+                    ],
+
+                    width=9
+                ),
+
+                dbc.Col(
+                    [
+
+                        html.Div(
+                            id="system-status",
+                            className="text-end"
+                        )
+
+                    ],
+
+                    width=3
+                )
+
+            ],
+
+            className="pt-4 pb-3"
+        ),
 
 
-def filter_by_range(df, range_value):
-    if df.empty:
-        return df
-    now = df["timestamp"].max()
-    if range_value == "10m":
-        return df[df["timestamp"] >= now - pd.Timedelta(minutes=10)]
-    elif range_value == "1h":
-        return df[df["timestamp"] >= now - pd.Timedelta(hours=1)]
-    elif range_value == "24h":
-        return df[df["timestamp"] >= now - pd.Timedelta(hours=24)]
-    return df
+        # SENSOR CARDS
+        dbc.Row(
+            [
+
+                dbc.Col(
+                    dbc.Card(
+                        dbc.CardBody(
+                            [
+
+                                html.Small(
+                                    "TEMPERATURE",
+                                    className="text-secondary"
+                                ),
+
+                                html.H2(
+                                    id="temperature-value",
+                                    children="--",
+                                    className="text-white fw-bold"
+                                ),
+
+                                html.Small(
+                                    "°C",
+                                    className="text-secondary"
+                                )
+
+                            ]
+                        ),
+                        className="bg-dark border-secondary h-100"
+                    ),
+
+                    width=3
+                ),
 
 
-app.layout = dbc.Container([
+                dbc.Col(
+                    dbc.Card(
+                        dbc.CardBody(
+                            [
 
-    dbc.Row([
-        dbc.Col([
-            html.Div([
-                html.H3("Smart Home Environment Dashboard", className="d-inline-block me-3 text-white fw-bold"),
-                dbc.Badge(id="status-badge", children="OFFLINE", color="secondary", className="px-2 py-1 align-middle", pill=True)
-            ]),
-            html.Small(id="last-updated", className="text-muted")
-        ])
-    ], className="my-4"),
+                                html.Small(
+                                    "HUMIDITY",
+                                    className="text-secondary"
+                                ),
 
-    dbc.Row([
-        dbc.Col(dbc.Card([dbc.CardBody([
-            html.P("Temperature", className="card-subtitle text-muted mb-1 fs-6"),
-            html.H2(id="temp-value", className="card-title text-white fw-bold mb-0")
-        ])], className="bg-dark border-secondary shadow-sm rounded-3"), width=3),
+                                html.H2(
+                                    id="humidity-value",
+                                    children="--",
+                                    className="text-white fw-bold"
+                                ),
 
-        dbc.Col(dbc.Card([dbc.CardBody([
-            html.P("Humidity", className="card-subtitle text-muted mb-1 fs-6"),
-            html.H2(id="humidity-value", className="card-title text-white fw-bold mb-0")
-        ])], className="bg-dark border-secondary shadow-sm rounded-3"), width=3),
+                                html.Small(
+                                    "%",
+                                    className="text-secondary"
+                                )
 
-        dbc.Col(dbc.Card([dbc.CardBody([
-            html.P("Air Quality (Gas)", className="card-subtitle text-muted mb-1 fs-6"),
-            html.H2(id="gas-value", className="card-title text-white fw-bold mb-0")
-        ])], className="bg-dark border-secondary shadow-sm rounded-3"), width=3),
+                            ]
+                        ),
+                        className="bg-dark border-secondary h-100"
+                    ),
 
-        dbc.Col(dbc.Card([dbc.CardBody([
-            html.P("Light Level", className="card-subtitle text-muted mb-1 fs-6"),
-            html.H2(id="light-value", className="card-title text-white fw-bold mb-0")
-        ])], className="bg-dark border-secondary shadow-sm rounded-3"), width=3),
-    ], className="g-3 mb-4"),
+                    width=3
+                ),
 
-    dbc.Card([
-        dbc.CardBody([
-            dbc.Row([
-                dbc.Col([
-                    html.Label("Time range", className="text-light small fw-bold mb-1"),
-                    dcc.Dropdown(
-                        id="time-range",
-                        options=[
-                            {"label": "Last 10 minutes", "value": "10m"},
-                            {"label": "Last 1 hour", "value": "1h"},
-                            {"label": "Last 24 hours", "value": "24h"}
-                        ],
-                        value="10m", clearable=False, style={"color": "#000"}
+
+                dbc.Col(
+                    dbc.Card(
+                        dbc.CardBody(
+                            [
+
+                                html.Small(
+                                    "GAS LEVEL",
+                                    className="text-secondary"
+                                ),
+
+                                html.H2(
+                                    id="gas-value",
+                                    children="--",
+                                    className="text-white fw-bold"
+                                ),
+
+                                html.Small(
+                                    "MQ-135",
+                                    className="text-secondary"
+                                )
+
+                            ]
+                        ),
+                        className="bg-dark border-secondary h-100"
+                    ),
+
+                    width=3
+                ),
+
+
+                dbc.Col(
+                    dbc.Card(
+                        dbc.CardBody(
+                            [
+
+                                html.Small(
+                                    "LIGHT LEVEL",
+                                    className="text-secondary"
+                                ),
+
+                                html.H2(
+                                    id="light-value",
+                                    children="--",
+                                    className="text-white fw-bold"
+                                ),
+
+                                html.Small(
+                                    "LDR",
+                                    className="text-secondary"
+                                )
+
+                            ]
+                        ),
+                        className="bg-dark border-secondary h-100"
+                    ),
+
+                    width=3
+                )
+
+            ],
+
+            className="g-3 mb-4"
+        ),
+
+
+        # CONTROLS
+        dbc.Card(
+            dbc.CardBody(
+                [
+
+                    dbc.Row(
+                        [
+
+                            dbc.Col(
+                                [
+
+                                    html.Label(
+                                        "Time Range",
+                                        className="text-white"
+                                    ),
+
+                                    dcc.Dropdown(
+
+                                        id="time-range",
+
+                                        options=[
+
+                                            {
+                                                "label": "Last 10 minutes",
+                                                "value": "10m"
+                                            },
+
+                                            {
+                                                "label": "Last 1 hour",
+                                                "value": "1h"
+                                            },
+
+                                            {
+                                                "label": "Last 6 hours",
+                                                "value": "6h"
+                                            },
+
+                                            {
+                                                "label": "Last 24 hours",
+                                                "value": "24h"
+                                            }
+
+                                        ],
+
+                                        value="10m",
+
+                                        clearable=False
+
+                                    )
+
+                                ],
+
+                                width=4
+                            )
+
+                        ]
+
                     )
-                ], width=3),
 
-                dbc.Col([
-                    html.Label("Show charts", className="text-light small fw-bold mb-1"),
-                    dbc.Checklist(
-                        id="show-charts",
-                        options=[
-                            {"label": "Temp/Humidity", "value": "temp"},
-                            {"label": "Gas", "value": "gas"},
-                            {"label": "Light", "value": "light"}
-                        ],
-                        value=["temp", "gas", "light"], inline=True, className="text-light pt-2"
+                ]
+            ),
+
+            className="bg-dark border-secondary mb-4"
+        ),
+
+
+        # ALERT
+        html.Div(
+            id="alert-section",
+            className="mb-4"
+        ),
+
+
+        # TEMPERATURE + HUMIDITY
+        dbc.Card(
+            dbc.CardBody(
+                [
+
+                    html.H5(
+                        "Temperature & Humidity",
+                        className="text-white fw-bold"
+                    ),
+
+                    dcc.Graph(
+                        id="temperature-chart",
+                        config={
+                            "displayModeBar": False
+                        }
                     )
-                ], width=3),
 
-                dbc.Col([
-                    html.Label(id="temp-slider-label", className="text-light small fw-bold mb-1"),
-                    dcc.Slider(id="temp-alert-slider", min=20, max=40, step=1, value=35,
-                               marks={20: '20', 30: '30', 40: '40'},
-                               tooltip={"placement": "bottom", "always_visible": False})
-                ], width=3),
+                ]
+            ),
 
-                dbc.Col([
-                    html.Label(id="gas-slider-label", className="text-light small fw-bold mb-1"),
-                    dcc.Slider(id="gas-alert-slider", min=0, max=4000, step=100, value=2000,
-                               marks={0: '0', 2000: '2000', 4000: '4000'},
-                               tooltip={"placement": "bottom", "always_visible": False})
-                ], width=3),
-            ], className="align-items-center")
-        ])
-    ], className="bg-dark border-secondary shadow-sm rounded-3 mb-3"),
+            className="bg-dark border-secondary mb-4"
+        ),
 
-    html.Div(id="alert-section", className="mb-4"),
 
-    dbc.Row([
-        dbc.Col(dbc.Card([dbc.CardBody([
-            html.H5("Temperature & Humidity Trend", className="text-white card-title fs-6 fw-bold"),
-            dcc.Graph(id="temp-chart", config={'displayModeBar': False})
-        ])], className="bg-dark border-secondary shadow-sm rounded-3 mb-4"), id="temp-col", width=6),
+        # GAS
+        dbc.Card(
+            dbc.CardBody(
+                [
 
-        dbc.Col(dbc.Card([dbc.CardBody([
-            html.H5("Air Quality Trend", className="text-white card-title fs-6 fw-bold"),
-            dcc.Graph(id="gas-chart", config={'displayModeBar': False})
-        ])], className="bg-dark border-secondary shadow-sm rounded-3 mb-4"), id="gas-col", width=6),
-    ]),
+                    html.H5(
+                        "Air Quality / Gas",
+                        className="text-white fw-bold"
+                    ),
 
-    dbc.Row([
-        dbc.Col(dbc.Card([dbc.CardBody([
-            html.H5("Light Level Trend", className="text-white card-title fs-6 fw-bold"),
-            dcc.Graph(id="light-chart", config={'displayModeBar': False})
-        ])], className="bg-dark border-secondary shadow-sm rounded-3 mb-4"), id="light-col", width=12)
-    ]),
+                    dcc.Graph(
+                        id="gas-chart",
+                        config={
+                            "displayModeBar": False
+                        }
+                    )
 
-    dcc.Interval(id="interval-component", interval=5000, n_intervals=0)
+                ]
+            ),
 
-], fluid=True, className="px-4 py-2 bg-black min-vh-100")
+            className="bg-dark border-secondary mb-4"
+        ),
 
+
+        # LIGHT
+        dbc.Card(
+            dbc.CardBody(
+                [
+
+                    html.H5(
+                        "Light Level",
+                        className="text-white fw-bold"
+                    ),
+
+                    dcc.Graph(
+                        id="light-chart",
+                        config={
+                            "displayModeBar": False
+                        }
+                    )
+
+                ]
+            ),
+
+            className="bg-dark border-secondary mb-4"
+        ),
+
+
+        # AUTO REFRESH
+        dcc.Interval(
+            id="refresh",
+            interval=5000,
+            n_intervals=0
+        )
+
+    ],
+
+    fluid=True,
+
+    className="bg-black min-vh-100 px-4"
+)
+
+
+# =========================================================
+# DASH CALLBACK
+# =========================================================
 
 @app.callback(
-    [Output("temp-value", "children"), Output("humidity-value", "children"),
-     Output("gas-value", "children"), Output("light-value", "children"),
-     Output("status-badge", "children"), Output("status-badge", "color"),
-     Output("last-updated", "children"), Output("temp-slider-label", "children"),
-     Output("gas-slider-label", "children"), Output("alert-section", "children"),
-     Output("temp-chart", "figure"), Output("gas-chart", "figure"), Output("light-chart", "figure"),
-     Output("temp-col", "style"), Output("gas-col", "style"), Output("light-col", "style")],
-    [Input("interval-component", "n_intervals"), Input("time-range", "value"),
-     Input("show-charts", "value"), Input("temp-alert-slider", "value"), Input("gas-alert-slider", "value")]
+
+    [
+
+        Output(
+            "temperature-value",
+            "children"
+        ),
+
+        Output(
+            "humidity-value",
+            "children"
+        ),
+
+        Output(
+            "gas-value",
+            "children"
+        ),
+
+        Output(
+            "light-value",
+            "children"
+        ),
+
+        Output(
+            "system-status",
+            "children"
+        ),
+
+        Output(
+            "alert-section",
+            "children"
+        ),
+
+        Output(
+            "temperature-chart",
+            "figure"
+        ),
+
+        Output(
+            "gas-chart",
+            "figure"
+        ),
+
+        Output(
+            "light-chart",
+            "figure"
+        )
+
+    ],
+
+    [
+
+        Input(
+            "refresh",
+            "n_intervals"
+        ),
+
+        Input(
+            "time-range",
+            "value"
+        )
+
+    ]
+
 )
-def update_dashboard(n, range_value, visible_charts, temp_thresh, gas_thresh):
+def update_dashboard(
+    n_intervals,
+    time_range
+):
+
     df = load_data()
 
-    temp_col_style = {} if "temp" in visible_charts else {"display": "none"}
-    gas_col_style = {} if "gas" in visible_charts else {"display": "none"}
-    light_col_style = {} if "light" in visible_charts else {"display": "none"}
 
-    temp_label = f"Temperature alert above: {temp_thresh} °C"
-    gas_label = f"Gas alert above: {gas_thresh}"
+    # ==============================================
+    # NO DATA
+    # ==============================================
 
     if df.empty:
-        empty_fig = go.Figure()
-        apply_dark_chart_style(empty_fig)
-        no_data_alert = dbc.Alert([
-            html.H5("⚠ No sensor data", className="fw-bold"),
-            html.P("The sensor system has not sent any readings yet.", className="mb-0")
-        ], color="secondary", className="mb-0")
-        return ("--", "--", "--", "--", "OFFLINE", "secondary", "No data yet",
-                temp_label, gas_label, no_data_alert, empty_fig, empty_fig, empty_fig,
-                temp_col_style, gas_col_style, light_col_style)
+
+        empty_temperature = go.Figure()
+
+        empty_gas = go.Figure()
+
+        empty_light = go.Figure()
+
+
+        for fig in [
+            empty_temperature,
+            empty_gas,
+            empty_light
+        ]:
+
+            style_graph(fig)
+
+            fig.update_layout(
+                annotations=[
+                    dict(
+                        text="Waiting for sensor data...",
+                        x=0.5,
+                        y=0.5,
+                        xref="paper",
+                        yref="paper",
+                        showarrow=False,
+                        font=dict(size=18)
+                    )
+                ]
+            )
+
+
+        return (
+
+            "--",
+            "--",
+            "--",
+            "--",
+
+            dbc.Badge(
+                "OFFLINE",
+                color="danger",
+                className="px-3 py-2"
+            ),
+
+            dbc.Alert(
+                "Waiting for ESP32 sensor data...",
+                color="secondary"
+            ),
+
+            empty_temperature,
+            empty_gas,
+            empty_light
+
+        )
+
+
+    # ==============================================
+    # LATEST READING
+    # ==============================================
 
     latest = df.iloc[-1]
-    filtered = filter_by_range(df, range_value)
 
-    seconds_since = (datetime.now() - latest["timestamp"]).total_seconds()
-    badge_text, badge_color = ("ONLINE", "success") if seconds_since <= STALE_SECONDS else ("OFFLINE", "danger")
 
-    alerts = []
-    if latest["temperature"] > temp_thresh:
-        alerts.append(dbc.Alert([
-            html.H5("🌡️ High Temperature", className="fw-bold"),
-            html.P("The temperature is above your selected alert level.", className="mb-1"),
-            html.Small(f"Current temperature: {latest['temperature']:.1f} °C")
-        ], color="danger", className="mb-2"))
+    # ==============================================
+    # FILTER
+    # ==============================================
 
-    if latest["gas"] > gas_thresh:
-        alerts.append(dbc.Alert([
-            html.H5("⚠️ Poor Air Quality", className="fw-bold"),
-            html.P("The gas level is above your selected alert level.", className="mb-1"),
-            html.Small(f"Current gas level: {latest['gas']:.0f}")
-        ], color="danger", className="mb-2"))
-
-    if seconds_since > STALE_SECONDS:
-        alerts.append(dbc.Alert([
-            html.H5("📡 Device Offline", className="fw-bold"),
-            html.P("No recent sensor data has been received. Please check the sensor system and Wi-Fi connection.", className="mb-0")
-        ], color="warning", className="mb-2"))
-
-    if len(alerts) == 0:
-        alert_section = dbc.Alert([
-            html.H5("✓ Everything looks good", className="fw-bold mb-1"),
-            html.P("Your environment is currently within the selected alert levels.", className="mb-0")
-        ], color="success", className="mb-0")
-    else:
-        alert_section = html.Div([html.H5("🔔 Attention Required", className="text-white fw-bold mb-2"), *alerts])
-
-    fig_temp = go.Figure()
-    fig_temp.add_trace(go.Scatter(x=filtered["timestamp"], y=filtered["temperature"], name="Temperature (°C)", line=dict(color="#F59E0B")))
-    fig_temp.add_trace(go.Scatter(x=filtered["timestamp"], y=filtered["humidity"], name="Humidity (%)", line=dict(color="#3B82F6"), yaxis="y2"))
-    fig_temp.add_hline(y=temp_thresh, line_dash="dash", line_color="#EF4444", annotation_text="Temp Alert")
-    fig_temp.update_layout(yaxis2=dict(overlaying="y", side="right"))
-    apply_dark_chart_style(fig_temp)
-
-    fig_gas = go.Figure()
-    fig_gas.add_trace(go.Scatter(x=filtered["timestamp"], y=filtered["gas"], name="Gas Level", line=dict(color="#10B981")))
-    fig_gas.add_hline(y=gas_thresh, line_dash="dash", line_color="#EF4444", annotation_text="Alert Threshold")
-    apply_dark_chart_style(fig_gas)
-
-    fig_light = go.Figure()
-    fig_light.add_trace(go.Scatter(x=filtered["timestamp"], y=filtered["light"], fill="tozeroy", name="Light Level", line=dict(color="#FBBF24"), fillcolor="rgba(251, 191, 36, 0.2)"))
-    apply_dark_chart_style(fig_light)
-
-    return (
-        f"{latest['temperature']:.1f} °C", f"{latest['humidity']:.1f} %",
-        f"{latest['gas']:.0f}", f"{latest['light']:.0f}",
-        badge_text, badge_color, f"Last updated: {latest['timestamp']}",
-        temp_label, gas_label, alert_section,
-        fig_temp, fig_gas, fig_light,
-        temp_col_style, gas_col_style, light_col_style
+    filtered = filter_data(
+        df,
+        time_range
     )
 
 
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    # ==============================================
+    # ONLINE STATUS
+    # ==============================================
+
+    now = pd.Timestamp.now(
+    tz="Asia/Colombo"
+)
+
+
+    seconds_old = (
+        now - latest["timestamp"]
+    ).total_seconds()
+
+
+    if seconds_old <= STALE_SECONDS:
+
+        status = dbc.Badge(
+            "ONLINE",
+            color="success",
+            className="px-3 py-2"
+        )
+
+    else:
+
+        status = dbc.Badge(
+            "OFFLINE",
+            color="danger",
+            className="px-3 py-2"
+        )
+
+
+    # ==============================================
+    # ALERT
+    # ==============================================
+
+    alerts = []
+
+
+    if latest["temperature"] >= 35:
+
+        alerts.append(
+            dbc.Alert(
+                "High temperature detected!",
+                color="danger"
+            )
+        )
+
+
+    if latest["gas"] >= 2000:
+
+        alerts.append(
+            dbc.Alert(
+                "High gas level detected!",
+                color="danger"
+            )
+        )
+
+
+    if seconds_old > STALE_SECONDS:
+
+        alerts.append(
+            dbc.Alert(
+                "ESP32 is not sending recent data.",
+                color="warning"
+            )
+        )
+
+
+    if not alerts:
+
+        alert_section = dbc.Alert(
+            "✓ Everything looks good",
+            color="success"
+        )
+
+    else:
+
+        alert_section = html.Div(
+            alerts
+        )
+
+
+    # ==============================================
+    # TEMPERATURE + HUMIDITY
+    # ==============================================
+
+    temp_fig = go.Figure()
+
+
+    temp_fig.add_trace(
+
+        go.Scatter(
+
+            x=filtered["timestamp"],
+
+            y=filtered["temperature"],
+
+            mode="lines+markers",
+
+            name="Temperature",
+
+            line=dict(
+                width=3
+            ),
+
+            marker=dict(
+                size=5
+            )
+
+        )
+
+    )
+
+
+    temp_fig.add_trace(
+
+        go.Scatter(
+
+            x=filtered["timestamp"],
+
+            y=filtered["humidity"],
+
+            mode="lines+markers",
+
+            name="Humidity",
+
+            yaxis="y2",
+
+            line=dict(
+                width=3
+            ),
+
+            marker=dict(
+                size=5
+            )
+
+        )
+
+    )
+
+
+    temp_fig.update_layout(
+
+        yaxis=dict(
+            title="Temperature (°C)"
+        ),
+
+        yaxis2=dict(
+
+            title="Humidity (%)",
+
+            overlaying="y",
+
+            side="right"
+
+        )
+
+    )
+
+
+    style_graph(temp_fig)
+
+
+    # ==============================================
+    # GAS
+    # ==============================================
+
+    gas_fig = go.Figure()
+
+
+    gas_fig.add_trace(
+
+        go.Scatter(
+
+            x=filtered["timestamp"],
+
+            y=filtered["gas"],
+
+            mode="lines+markers",
+
+            name="Gas Level",
+
+            line=dict(
+                width=3
+            ),
+
+            marker=dict(
+                size=5
+            )
+
+        )
+
+    )
+
+
+    style_graph(gas_fig)
+
+
+    gas_fig.update_layout(
+        yaxis_title="MQ-135 Value"
+    )
+
+
+    # ==============================================
+    # LIGHT
+    # ==============================================
+
+    light_fig = go.Figure()
+
+
+    light_fig.add_trace(
+
+        go.Scatter(
+
+            x=filtered["timestamp"],
+
+            y=filtered["light"],
+
+            mode="lines+markers",
+
+            name="Light Level",
+
+            fill="tozeroy",
+
+            line=dict(
+                width=3
+            ),
+
+            marker=dict(
+                size=5
+            )
+
+        )
+
+    )
+
+
+    style_graph(light_fig)
+
+
+    light_fig.update_layout(
+        yaxis_title="LDR Value"
+    )
+
+
+    # ==============================================
+    # RETURN
+    # ==============================================
+
+    return (
+
+        f"{latest['temperature']:.1f}",
+
+        f"{latest['humidity']:.1f}",
+
+        f"{latest['gas']:.0f}",
+
+        f"{latest['light']:.0f}",
+
+        status,
+
+        alert_section,
+
+        temp_fig,
+
+        gas_fig,
+
+        light_fig
+
+    )
+
+
+# =========================================================
+# START SERVER
+# =========================================================
+
+if __name__ == "__main__":
+
+    port = int(
+        os.environ.get(
+            "PORT",
+            5000
+        )
+    )
+
+    app.run(
+        host="0.0.0.0",
+        port=port,
+        debug=False
+    )
