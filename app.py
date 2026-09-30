@@ -5,7 +5,7 @@ from flask import request, jsonify
 from pymongo import MongoClient
 
 import dash
-from dash import dcc, html, Input, Output
+from dash import dcc, html, Input, Output, ctx
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 import pandas as pd
@@ -610,22 +610,18 @@ app.layout = dbc.Container(
         dbc.Card(
             dbc.CardBody(
                 [
-
                     dbc.Row(
                         [
-
+                            # TIME RANGE
                             dbc.Col(
                                 [
-
                                     html.Label(
-                                        "Time Range",
-                                        className="text-white"
+                                        "Time range",
+                                        className="text-white fw-bold mb-2"
                                     ),
 
                                     dcc.Dropdown(
-
                                         id="time-range",
-
                                         options=[
                                             {
                                                 "label": "Last 10 minutes",
@@ -644,37 +640,205 @@ app.layout = dbc.Container(
                                                 "value": "24h"
                                             }
                                         ],
-
                                         value="10m",
-
                                         clearable=False,
-
                                         searchable=False,
-
                                         className="time-range-dropdown",
-
                                         style={
                                             "color": "#111827",
                                             "backgroundColor": "#ffffff"
                                         }
-
                                     )
-
                                 ],
+                                xs=12,
+                                md=3
+                            ),
 
-                                width=4
+                            # SHOW CHARTS
+                            dbc.Col(
+                                [
+                                    html.Label(
+                                        "Show charts",
+                                        className="text-white fw-bold mb-2"
+                                    ),
+
+                                    dcc.Checklist(
+                                        id="show-charts",
+                                        options=[
+                                            {
+                                                "label": " Temp/Humidity",
+                                                "value": "temp"
+                                            },
+                                            {
+                                                "label": " Gas",
+                                                "value": "gas"
+                                            },
+                                            {
+                                                "label": " Light",
+                                                "value": "light"
+                                            }
+                                        ],
+                                        value=["temp", "gas", "light"],
+                                        inline=True,
+                                        inputStyle={
+                                            "marginRight": "6px"
+                                        },
+                                        labelStyle={
+                                            "color": "#cbd5e1",
+                                            "marginRight": "12px",
+                                            "fontSize": "15px"
+                                        }
+                                    )
+                                ],
+                                xs=12,
+                                md=3,
+                                className="mt-3 mt-md-0"
+                            ),
+
+                            # TEMPERATURE ALERT
+                            dbc.Col(
+                                [
+                                    html.Div(
+                                        [
+                                            html.Label(
+                                                "Temperature alert above: ",
+                                                className="text-white fw-bold mb-0"
+                                            ),
+
+                                            html.Span(
+                                                id="temp-threshold-label",
+                                                children="35 °C",
+                                                className="text-white fw-bold"
+                                            )
+                                        ]
+                                    ),
+
+                                    dbc.Row(
+                                        [
+                                            dbc.Col(
+                                                dcc.Slider(
+                                                    id="temp-alert-threshold",
+                                                    min=20,
+                                                    max=40,
+                                                    step=1,
+                                                    value=35,
+                                                    marks={
+                                                        20: "20",
+                                                        30: "30",
+                                                        40: "40"
+                                                    },
+                                                    tooltip={
+                                                        "placement": "bottom",
+                                                        "always_visible": False
+                                                    }
+                                                ),
+                                                width=9
+                                            ),
+                                            dbc.Col(
+                                                dcc.Input(
+                                                    id="temp-alert-input",
+                                                    type="number",
+                                                    min=20,
+                                                    max=40,
+                                                    step=1,
+                                                    value=35,
+                                                    debounce=True,
+                                                    style={
+                                                        "width": "100%",
+                                                        "height": "38px",
+                                                        "backgroundColor": "#ffffff",
+                                                        "color": "#111827",
+                                                        "border": "1px solid #e5e7eb",
+                                                        "borderRadius": "4px",
+                                                        "textAlign": "center"
+                                                    }
+                                                ),
+                                                width=3
+                                            )
+                                        ],
+                                        className="align-items-center"
+                                    )
+                                ],
+                                xs=12,
+                                md=3,
+                                className="mt-3 mt-md-0"
+                            ),
+
+                            # GAS ALERT
+                            dbc.Col(
+                                [
+                                    html.Div(
+                                        [
+                                            html.Label(
+                                                "Gas alert above: ",
+                                                className="text-white fw-bold mb-0"
+                                            ),
+
+                                            html.Span(
+                                                id="gas-threshold-label",
+                                                children="2000",
+                                                className="text-white fw-bold"
+                                            )
+                                        ]
+                                    ),
+
+                                    dbc.Row(
+                                        [
+                                            dbc.Col(
+                                                dcc.Slider(
+                                                    id="gas-alert-threshold",
+                                                    min=0,
+                                                    max=4000,
+                                                    step=100,
+                                                    value=2000,
+                                                    marks={
+                                                        0: "0",
+                                                        2000: "2000",
+                                                        4000: "4000"
+                                                    },
+                                                    tooltip={
+                                                        "placement": "bottom",
+                                                        "always_visible": False
+                                                    }
+                                                ),
+                                                width=9
+                                            ),
+                                            dbc.Col(
+                                                dcc.Input(
+                                                    id="gas-alert-input",
+                                                    type="number",
+                                                    min=0,
+                                                    max=4000,
+                                                    step=100,
+                                                    value=2000,
+                                                    debounce=True,
+                                                    style={
+                                                        "width": "100%",
+                                                        "height": "38px",
+                                                        "backgroundColor": "#ffffff",
+                                                        "color": "#111827",
+                                                        "border": "1px solid #e5e7eb",
+                                                        "borderRadius": "4px",
+                                                        "textAlign": "center"
+                                                    }
+                                                ),
+                                                width=3
+                                            )
+                                        ],
+                                        className="align-items-center"
+                                    )
+                                ],
+                                xs=12,
+                                md=3,
+                                className="mt-3 mt-md-0"
                             )
-
-                        ]
-
+                        ],
+                        className="align-items-center"
                     )
-
                 ]
             ),
-
             className="bg-dark border-secondary mb-4"
         ),
-
 
         # ALERT
         html.Div(
@@ -701,11 +865,12 @@ app.layout = dbc.Container(
                                     config={
                                         "displayModeBar": False
                                     },
-                                    style={"height": "430px"}
+                                    style={"height": "500px"}
                                 )
                             ]
                         ),
-                        className="bg-dark border-secondary h-100"
+                        className="bg-dark border-secondary h-100",
+                        id="temp-chart-card"
                     ),
                     width=6
                 ),
@@ -724,11 +889,12 @@ app.layout = dbc.Container(
                                     config={
                                         "displayModeBar": False
                                     },
-                                    style={"height": "430px"}
+                                    style={"height": "500px"}
                                 )
                             ]
                         ),
-                        className="bg-dark border-secondary h-100"
+                        className="bg-dark border-secondary h-100",
+                        id="gas-chart-card"
                     ),
                     width=6
                 )
@@ -753,13 +919,14 @@ app.layout = dbc.Container(
                         config={
                             "displayModeBar": False
                         },
-                        style={"height": "400px"}
+                        style={"height": "470px"}
                     )
 
                 ]
             ),
 
-            className="bg-dark border-secondary mb-4"
+            className="bg-dark border-secondary mb-4",
+            id="light-chart-card"
         ),
 
 
@@ -822,6 +989,16 @@ app.layout = dbc.Container(
         ),
 
         Output(
+            "temp-threshold-label",
+            "children"
+        ),
+
+        Output(
+            "gas-threshold-label",
+            "children"
+        ),
+
+        Output(
             "temperature-chart",
             "figure"
         ),
@@ -848,6 +1025,16 @@ app.layout = dbc.Container(
         Input(
             "time-range",
             "value"
+        ),
+
+        Input(
+            "temp-alert-threshold",
+            "value"
+        ),
+
+        Input(
+            "gas-alert-threshold",
+            "value"
         )
 
     ]
@@ -855,7 +1042,9 @@ app.layout = dbc.Container(
 )
 def update_dashboard(
     n_intervals,
-    time_range
+    time_range,
+    temp_alert_threshold,
+    gas_alert_threshold
 ):
 
     df = load_data()
@@ -916,6 +1105,9 @@ def update_dashboard(
                 "Waiting for ESP32 sensor data...",
                 color="secondary"
             ),
+
+            f"{temp_alert_threshold:.0f} °C",
+            f"{gas_alert_threshold:.0f}",
 
             empty_temperature,
             empty_gas,
@@ -979,7 +1171,7 @@ def update_dashboard(
     alerts = []
 
 
-    if latest["temperature"] >= 35:
+    if latest["temperature"] >= temp_alert_threshold:
 
         alerts.append(
             dbc.Alert(
@@ -989,7 +1181,7 @@ def update_dashboard(
         )
 
 
-    if latest["gas"] >= 2000:
+    if latest["gas"] >= gas_alert_threshold:
 
         alerts.append(
             dbc.Alert(
@@ -1043,11 +1235,13 @@ def update_dashboard(
             name="Temperature",
 
             line=dict(
-                width=3
+                width=3,
+                color="#f59e0b"
             ),
 
             marker=dict(
-                size=5
+                size=5,
+                color="#f59e0b"
             )
 
         )
@@ -1070,11 +1264,13 @@ def update_dashboard(
             yaxis="y2",
 
             line=dict(
-                width=3
+                width=3,
+                color="#3b82f6"
             ),
 
             marker=dict(
-                size=5
+                size=5,
+                color="#3b82f6"
             )
 
         )
@@ -1105,18 +1301,18 @@ def update_dashboard(
 
     # Older dashboard style: red dashed temperature alert line
     temp_fig.add_hline(
-        y=35,
+        y=temp_alert_threshold,
         line_dash="dash",
         line_width=2,
         line_color="#ff5c5c",
-        annotation_text="Temp Alert",
+        annotation_text=f"Temp Alert ({temp_alert_threshold:.0f} °C)",
         annotation_position="top right",
         annotation_font_color="#94a3b8"
     )
 
     # Keep the dual-axis presentation clean.
     temp_fig.update_layout(
-        height=430,
+        height=500,
         legend=dict(
             orientation="h",
             yanchor="top",
@@ -1147,11 +1343,13 @@ def update_dashboard(
             name="Gas Level",
 
             line=dict(
-                width=3
+                width=3,
+                color="#10b981"
             ),
 
             marker=dict(
-                size=5
+                size=5,
+                color="#10b981"
             )
 
         )
@@ -1163,11 +1361,11 @@ def update_dashboard(
 
     # Older dashboard style: red dashed gas alert threshold
     gas_fig.add_hline(
-        y=2000,
+        y=gas_alert_threshold,
         line_dash="dash",
         line_width=2,
         line_color="#ff5c5c",
-        annotation_text="Alert Threshold",
+        annotation_text=f"Alert Threshold ({gas_alert_threshold:.0f})",
         annotation_position="top right",
         annotation_font_color="#94a3b8"
     )
@@ -1200,12 +1398,16 @@ def update_dashboard(
             fill="tozeroy",
 
             line=dict(
-                width=3
+                width=3,
+                color="#fbbf24"
             ),
 
             marker=dict(
-                size=5
-            )
+                size=5,
+                color="#fbbf24"
+            ),
+
+            fillcolor="rgba(251, 191, 36, 0.18)"
 
         )
 
@@ -1215,7 +1417,7 @@ def update_dashboard(
     style_graph(light_fig)
 
     light_fig.update_layout(
-        height=400,
+        height=470,
         yaxis_title="LDR Value"
     )
 
@@ -1240,12 +1442,99 @@ def update_dashboard(
 
         alert_section,
 
+        f"{temp_alert_threshold:.0f} °C",
+
+        f"{gas_alert_threshold:.0f}",
+
         temp_fig,
 
         gas_fig,
 
         light_fig
 
+    )
+
+
+# =========================================================
+# ALERT THRESHOLD INPUT SYNC
+# =========================================================
+
+@app.callback(
+    [
+        Output("temp-alert-threshold", "value"),
+        Output("temp-alert-input", "value")
+    ],
+    [
+        Input("temp-alert-threshold", "value"),
+        Input("temp-alert-input", "value")
+    ],
+    prevent_initial_call=True
+)
+def sync_temp_threshold(slider_value, input_value):
+
+    if ctx.triggered_id == "temp-alert-input":
+        value = input_value if input_value is not None else 35
+    else:
+        value = slider_value if slider_value is not None else 35
+
+    value = max(20, min(40, float(value)))
+
+    return value, value
+
+
+@app.callback(
+    [
+        Output("gas-alert-threshold", "value"),
+        Output("gas-alert-input", "value")
+    ],
+    [
+        Input("gas-alert-threshold", "value"),
+        Input("gas-alert-input", "value")
+    ],
+    prevent_initial_call=True
+)
+def sync_gas_threshold(slider_value, input_value):
+
+    if ctx.triggered_id == "gas-alert-input":
+        value = input_value if input_value is not None else 2000
+    else:
+        value = slider_value if slider_value is not None else 2000
+
+    value = max(0, min(4000, float(value)))
+
+    # Keep gas threshold on 100-point increments.
+    value = round(value / 100) * 100
+
+    return value, value
+
+
+# =========================================================
+# SHOW / HIDE CHARTS
+
+# =========================================================
+
+@app.callback(
+
+    [
+        Output("temp-chart-card", "style"),
+        Output("gas-chart-card", "style"),
+        Output("light-chart-card", "style")
+    ],
+
+    Input(
+        "show-charts",
+        "value"
+    )
+
+)
+def toggle_charts(selected_charts):
+
+    selected_charts = selected_charts or []
+
+    return (
+        {"display": "block"} if "temp" in selected_charts else {"display": "none"},
+        {"display": "block"} if "gas" in selected_charts else {"display": "none"},
+        {"display": "block"} if "light" in selected_charts else {"display": "none"}
     )
 
 
