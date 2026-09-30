@@ -406,6 +406,31 @@ def style_graph(fig):
 
 
 # =========================================================
+# SENSOR VALUE HELPERS
+# =========================================================
+
+def safe_sensor_value(value, decimals=1):
+    if value is None or pd.isna(value):
+        return "Unavailable"
+
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return "Unavailable"
+
+    # ESP32 fault-tolerant sentinels:
+    # -999 = DHT22 unavailable
+    # -1   = analog sensor unavailable
+    if numeric <= -900 or numeric < 0:
+        return "Unavailable"
+
+    if decimals == 0:
+        return f"{numeric:.0f}"
+
+    return f"{numeric:.{decimals}f}"
+
+
+# =========================================================
 # DASHBOARD LAYOUT
 # =========================================================
 
@@ -1242,7 +1267,7 @@ def update_dashboard(
             y=filtered["temperature"],
 
             mode="lines",
-            connectgaps=True,
+            connectgaps=False,
 
             name="Temperature",
 
@@ -1270,7 +1295,7 @@ def update_dashboard(
             y=filtered["humidity"],
 
             mode="lines",
-            connectgaps=True,
+            connectgaps=False,
 
             name="Humidity",
 
@@ -1352,7 +1377,7 @@ def update_dashboard(
             y=filtered["gas"],
 
             mode="lines",
-            connectgaps=True,
+            connectgaps=False,
 
             name="Gas Level",
 
@@ -1406,7 +1431,7 @@ def update_dashboard(
             y=filtered["light"],
 
             mode="lines",
-            connectgaps=True,
+            connectgaps=False,
 
             name="Light Level",
 
@@ -1443,13 +1468,13 @@ def update_dashboard(
 
     return (
 
-        f"{latest['temperature']:.1f}",
+        safe_sensor_value(latest["temperature"], 1),
 
-        f"{latest['humidity']:.1f}",
+        safe_sensor_value(latest["humidity"], 1),
 
-        f"{latest['gas']:.0f}",
+        safe_sensor_value(latest["gas"], 0),
 
-        f"{latest['light']:.0f}",
+        safe_sensor_value(latest["light"], 0),
 
         status,
 
