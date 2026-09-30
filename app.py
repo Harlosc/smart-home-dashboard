@@ -303,6 +303,24 @@ def load_data():
         "Asia/Colombo"
     )
 
+    # Convert sensor columns to numeric values.
+    # The fault-tolerant ESP32 uses:
+    #   -999 for unavailable DHT22 temperature/humidity
+    #   -1 for unavailable analog sensors
+    # Convert those sentinel values to NaN so the dashboard
+    # can correctly detect a failed sensor and show a warning.
+    for col in ["temperature", "humidity", "gas", "light"]:
+        df[col] = pd.to_numeric(
+            df[col],
+            errors="coerce"
+        )
+
+    df.loc[df["temperature"] <= -900, "temperature"] = float("nan")
+    df.loc[df["humidity"] <= -900, "humidity"] = float("nan")
+
+    df.loc[df["gas"] < 0, "gas"] = float("nan")
+    df.loc[df["light"] < 0, "light"] = float("nan")
+
     return df
 
 
@@ -1229,15 +1247,14 @@ def update_dashboard(
         if len(sensor_failures) == 1:
 
             sensor_warning_text = (
-                f"⚠ Sensor Warning: {sensor_failures[0]} sensor "
-                f"is unavailable. Other sensors are still operating."
+                f"{sensor_failures[0]} sensor is unavailable. "
+                f"Other sensors are still operating."
             )
 
         else:
 
             sensor_warning_text = (
-                "⚠ Sensor Warning: "
-                + ", ".join(sensor_failures)
+                ", ".join(sensor_failures)
                 + " sensors are unavailable. "
                 "Other available sensors are still operating."
             )
