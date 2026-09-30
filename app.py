@@ -467,15 +467,32 @@ app.layout = dbc.Container(
                                     className="text-secondary"
                                 ),
 
-                                html.H2(
-                                    id="temperature-value",
-                                    children="--",
-                                    className="text-white fw-bold"
-                                ),
+                                html.Div(
+                                    [
+                                        html.H2(
+                                            id="temperature-value",
+                                            children="--",
+                                            className="text-white fw-bold mb-0",
+                                            style={
+                                                "display": "inline-block"
+                                            }
+                                        ),
 
-                                html.Small(
-                                    "°C",
-                                    className="text-secondary"
+                                        html.Span(
+                                            " °C",
+                                            className="text-secondary",
+                                            style={
+                                                "fontSize": "20px",
+                                                "marginLeft": "8px",
+                                                "verticalAlign": "middle"
+                                            }
+                                        )
+                                    ],
+                                    style={
+                                        "display": "flex",
+                                        "alignItems": "baseline",
+                                        "marginTop": "4px"
+                                    }
                                 )
 
                             ]
@@ -497,15 +514,32 @@ app.layout = dbc.Container(
                                     className="text-secondary"
                                 ),
 
-                                html.H2(
-                                    id="humidity-value",
-                                    children="--",
-                                    className="text-white fw-bold"
-                                ),
+                                html.Div(
+                                    [
+                                        html.H2(
+                                            id="humidity-value",
+                                            children="--",
+                                            className="text-white fw-bold mb-0",
+                                            style={
+                                                "display": "inline-block"
+                                            }
+                                        ),
 
-                                html.Small(
-                                    "%",
-                                    className="text-secondary"
+                                        html.Span(
+                                            " %",
+                                            className="text-secondary",
+                                            style={
+                                                "fontSize": "20px",
+                                                "marginLeft": "8px",
+                                                "verticalAlign": "middle"
+                                            }
+                                        )
+                                    ],
+                                    style={
+                                        "display": "flex",
+                                        "alignItems": "baseline",
+                                        "marginTop": "4px"
+                                    }
                                 )
 
                             ]
