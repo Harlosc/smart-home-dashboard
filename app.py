@@ -39,6 +39,66 @@ server = app.server
 
 
 # =========================================================
+# DROPDOWN / UI CSS
+# =========================================================
+
+# Dash's DARKLY theme can make the selected value inside a
+# white dropdown appear blank. Force the selected value and
+# placeholder text to use a dark color.
+app.index_string = """
+<!DOCTYPE html>
+<html>
+    <head>
+        {%metas%}
+        <title>Smart Home IoT Dashboard</title>
+        {%favicon%}
+        {%css%}
+        <style>
+            .time-range-dropdown .Select-control {
+                background-color: #ffffff !important;
+                color: #111827 !important;
+            }
+
+            .time-range-dropdown .Select-value-label {
+                color: #111827 !important;
+            }
+
+            .time-range-dropdown .Select-placeholder {
+                color: #111827 !important;
+            }
+
+            .time-range-dropdown .Select-input > input {
+                color: #111827 !important;
+            }
+
+            .time-range-dropdown .Select-menu-outer {
+                background-color: #ffffff !important;
+            }
+
+            .time-range-dropdown .Select-option {
+                color: #111827 !important;
+                background-color: #ffffff !important;
+            }
+
+            .time-range-dropdown .Select-option:hover {
+                background-color: #e5e7eb !important;
+                color: #111827 !important;
+            }
+        </style>
+    </head>
+    <body>
+        {%app_entry%}
+        <footer>
+            {%config%}
+            {%scripts%}
+            {%renderer%}
+        </footer>
+    </body>
+</html>
+"""
+
+
+# =========================================================
 # SETTINGS
 # =========================================================
 
@@ -566,6 +626,8 @@ app.layout = dbc.Container(
                                         clearable=False,
 
                                         searchable=False,
+
+                                        className="time-range-dropdown",
 
                                         style={
                                             "color": "#111827",
