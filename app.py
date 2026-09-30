@@ -480,11 +480,11 @@ app.layout = dbc.Container(
 
                                         html.Span(
                                             " °C",
-                                            className="text-secondary",
+                                            className="text-white fw-bold",
                                             style={
-                                                "fontSize": "20px",
+                                                "fontSize": "2rem",
                                                 "marginLeft": "8px",
-                                                "verticalAlign": "middle"
+                                                "verticalAlign": "baseline"
                                             }
                                         )
                                     ],
@@ -527,11 +527,11 @@ app.layout = dbc.Container(
 
                                         html.Span(
                                             " %",
-                                            className="text-secondary",
+                                            className="text-white fw-bold",
                                             style={
-                                                "fontSize": "20px",
+                                                "fontSize": "2rem",
                                                 "marginLeft": "8px",
-                                                "verticalAlign": "middle"
+                                                "verticalAlign": "baseline"
                                             }
                                         )
                                     ],
@@ -567,11 +567,6 @@ app.layout = dbc.Container(
                                     className="text-white fw-bold"
                                 ),
 
-                                html.Small(
-                                    "MQ-135",
-                                    className="text-secondary"
-                                )
-
                             ]
                         ),
                         className="bg-dark border-secondary h-100"
@@ -596,11 +591,6 @@ app.layout = dbc.Container(
                                     children="--",
                                     className="text-white fw-bold"
                                 ),
-
-                                html.Small(
-                                    "LDR",
-                                    className="text-secondary"
-                                )
 
                             ]
                         ),
